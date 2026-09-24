@@ -15,10 +15,12 @@ from datetime import timedelta
 import os
 from environ import Env
 
+import dj_database_url
+
 env = Env()
 
 Env.read_env()
-ENVIRONMENT = env("ENVIRONMENT",default="production")
+ENVIRONMENT = env("ENVIRONMENT", default="production")
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -34,13 +36,14 @@ if ENVIRONMENT == "development":
     DEBUG = True
 else:
     DEBUG = False
+
 ALLOWED_HOSTS = [
     "192.168.43.7",
     "192.168.30.186",
     'localhost',
     '127.0.0.1',
     "192.168.17.186",
-    '.railway.app',  
+    '.railway.app',
     "*"
     # Allows all Railway subdomains
 ]
@@ -58,8 +61,10 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'delivery',
-    'channels'
+    'channels',
 ]
+
+INSTALLED_APPS += ['storages']
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -77,7 +82,7 @@ MIDDLEWARE = [
 
 if ENVIRONMENT == "development":
     CORS_ALLOW_ALL_ORIGINS = True
-    CSRF_TRUSTED_ORIGINS = ["http://localhost:5173/","http://192.168.43.7:5173"]
+    CSRF_TRUSTED_ORIGINS = ["http://localhost:5173/", "http://192.168.43.7:5173"]
 else:
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [
@@ -85,12 +90,11 @@ else:
         "https://*.railway.app",
     ]
     CSRF_TRUSTED_ORIGINS = [
-    'https://*.railway.app',
-]
+        'https://*.railway.app',
+    ]
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
-
 
 
 CORS_ALLOW_CREDENTIALS = True
@@ -99,10 +103,9 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-     "DEFAULT_PERMISSION_CLASSES": [
+    "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-
 }
 
 
@@ -145,16 +148,39 @@ print(ENVIRONMENT)
 
 if ENVIRONMENT == "production":
     DATABASES = {
-        'default':{
-            'ENGINE':'django.db.backends.postgresql',
-            'NAME':env("DB_NAME"),
-            'USER':env("DB_USER"),
-            'PASSWORD':env("DB_PASSWORD"),
-            'HOST':env("DB_HOST"),
-            'PORT':env("DB_PORT")
-        }
+        'default': dj_database_url.config(
+            env="DATABASE_URL",
+            conn_max_age=600,
+            ssl_require=True,  # set False only if your DB doesn't need SSL (e.g. same private network)
+        )
     }
-    MEDIA_ROOT = os.path.join(os.environ['RAILWAY_VOLUME_MOUNT_PATH'], 'media')
+
+    # --- Supabase S3-compatible storage for media files ---
+    AWS_ACCESS_KEY_ID = env("SUPABASE_S3_ACCESS_KEY")
+    AWS_SECRET_ACCESS_KEY = env("SUPABASE_S3_SECRET_KEY")
+    AWS_STORAGE_BUCKET_NAME = env("SUPABASE_BUCKET_NAME")       # e.g. "media"
+    AWS_S3_ENDPOINT_URL = env("SUPABASE_S3_ENDPOINT")           # e.g. https://xxxx.supabase.co/storage/v1/s3
+    AWS_S3_REGION_NAME = env("SUPABASE_S3_REGION", default="us-east-1")
+
+    AWS_S3_ADDRESSING_STYLE = 'path'      # Supabase needs path-style, not virtual-hosted
+    AWS_S3_SIGNATURE_VERSION = 's3v4'     # required for non-AWS endpoints
+    AWS_S3_FILE_OVERWRITE = False
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+
+    # Public object URL format is Supabase-specific, NOT the raw S3 endpoint.
+    # Derive the project ref from AWS_S3_ENDPOINT_URL
+    # (e.g. https://abcxyz.supabase.co/storage/v1/s3 -> "abcxyz")
+    _SUPABASE_HOST = AWS_S3_ENDPOINT_URL.split('//')[1].split('.supabase.co')[0]
+    MEDIA_URL = f"https://{_SUPABASE_HOST}.supabase.co/storage/v1/object/public/{AWS_STORAGE_BUCKET_NAME}/"
+
 else:
     DATABASES = {
         'default': {
@@ -163,23 +189,32 @@ else:
         }
     }
     MEDIA_ROOT = BASE_DIR / 'media'
+    MEDIA_URL = '/media/'
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 
 if ENVIRONMENT == "production":
     CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [REDIS_URL],
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                "hosts": [REDIS_URL],
             },
         },
     }
 else:
     CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
-            },
-        }
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
 
 
 # Password validation
@@ -218,10 +253,6 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-MEDIA_URL = '/media/'
-
 
 
 # Default primary key field type
