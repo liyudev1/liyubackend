@@ -87,10 +87,12 @@ else:
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [
         "https://liyudeliveryfrontend-production.up.railway.app",
+        "https://liyudelivery.hailecw27.workers.dev",
         "https://*.railway.app",
     ]
     CSRF_TRUSTED_ORIGINS = [
         'https://*.railway.app',
+        'https://liyudelivery.hailecw27.workers.dev',
     ]
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
