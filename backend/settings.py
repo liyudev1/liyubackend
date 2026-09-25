@@ -160,7 +160,7 @@ if ENVIRONMENT == "production":
     # --- Supabase S3-compatible storage for media files (PUBLIC bucket) ---
     AWS_ACCESS_KEY_ID = env("SUPABASE_S3_ACCESS_KEY")
     AWS_SECRET_ACCESS_KEY = env("SUPABASE_S3_SECRET_KEY")
-    AWS_STORAGE_BUCKET_NAME = env("SUPABASE_BUCKET_NAME")       # e.g. "LiyuDelivery"
+    AWS_STORAGE_BUCKET_NAME = env("SUPABASE_BUCKET_NAME")       # e.g. "LiyuDelivery" — must match the bucket name exactly, not the region
     AWS_S3_ENDPOINT_URL = env("SUPABASE_S3_ENDPOINT")           # e.g. https://xxxx.supabase.co/storage/v1/s3
     AWS_S3_REGION_NAME = env("SUPABASE_S3_REGION", default="us-east-1")
 
@@ -168,9 +168,11 @@ if ENVIRONMENT == "production":
     AWS_S3_SIGNATURE_VERSION = 's3v4'     # required for non-AWS endpoints
     AWS_S3_FILE_OVERWRITE = False
 
-    # Derive the project ref from AWS_S3_ENDPOINT_URL
-    # (e.g. https://abcxyz.supabase.co/storage/v1/s3 -> "abcxyz")
-    _SUPABASE_HOST = AWS_S3_ENDPOINT_URL.split('//')[1].split('.supabase.co')[0]
+    # Extract just the project ref (first hostname label), not everything
+    # before ".supabase.co" — some Supabase endpoints include an extra
+    # "storage." subdomain segment, which would otherwise get pulled in
+    # and produce a broken double-"storage" domain.
+    _SUPABASE_HOST = AWS_S3_ENDPOINT_URL.split('//')[1].split('.')[0]
 
     # Bucket is public: build file URLs from Supabase's public object path
     # instead of the S3 API endpoint (django-storages ignores MEDIA_URL
