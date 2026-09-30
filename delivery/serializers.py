@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from .models import Profile, CategoryModel, ProductImage, ProductItem, Order, ContactUs
 
 User = get_user_model()   
@@ -18,18 +19,22 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         phone = validated_data.pop("phone", None)
-        is_delivery = validated_data.pop("is_delivery", None)
+        # Profile.is_delivery is NOT NULL, so passing None when the client omits it
+        # made the Profile insert fail and left a user without a Profile.
+        is_delivery = validated_data.pop("is_delivery", False)
         chat_id = validated_data.pop("chat_id", None)
 
-        user = User.objects.create_user(**validated_data)
+        # all or nothing: never keep a user whose Profile could not be created
+        with transaction.atomic():
+            user = User.objects.create_user(**validated_data)
 
-        # Create profile with phone
-        Profile.objects.create(
-            user=user,
-            phone=phone,
-            is_delivery=is_delivery,
-            chat_id=chat_id
-        )
+            # Create profile with phone
+            Profile.objects.create(
+                user=user,
+                phone=phone,
+                is_delivery=is_delivery,
+                chat_id=chat_id
+            )
         return user
 
 
@@ -51,13 +56,20 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def to_representation(self, instance):
-        data = super().to_representation(instance)
-        request = self.context.get("request")
+        # Every product carries its category, and there are only a few categories.
+        # Build each one once per request instead of once per product.
+        cache = self.context.setdefault("_category_cache", {})
+        if instance.pk in cache:
+            return cache[instance.pk]
 
-        if request and data.get("image"):
-            data["image"] = request.build_absolute_uri(instance.image.url)
+        data = super().to_representation(instance)
+
+        # The ImageField already returned an absolute URL when a request is in the
+        # context, so there is no need to call instance.image.url (storage work) again.
+        if data.get("image"):
             data["image"] = data["image"].replace("http://", "https://")
 
+        cache[instance.pk] = data
         return data
 
 
