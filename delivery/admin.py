@@ -1,9 +1,67 @@
 from django.contrib import admin
-from .models import Profile,CategoryModel,ProductItem,ProductImage,Order,ContactUs
+from django.urls import reverse
 from django.utils.html import format_html
+from .models import Profile, CategoryModel, ProductItem, ProductImage, Order, ContactUs
 
-admin.site.register([Profile,CategoryModel,ProductItem,ProductImage,ContactUs])
+admin.site.register([Profile, ProductImage, ContactUs])
 
+
+# ---------------------------------------------------------------------------
+# Category -> Products
+# ---------------------------------------------------------------------------
+
+class ProductItemInline(admin.TabularInline):
+    """Shows all products of a category directly on the category page."""
+    model = ProductItem
+    fields = ['name', 'price', 'delivery_fee', 'location', 'rate']
+    readonly_fields = ['name', 'price', 'delivery_fee', 'location', 'rate']
+    extra = 0
+    can_delete = False
+    show_change_link = True  # link to open/edit each product
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(CategoryModel)
+class CategoryModelAdmin(admin.ModelAdmin):
+    list_display = ['name', 'type', 'parent_category', 'is_sub_category', 'product_count', 'view_products']
+    list_filter = ['is_sub_category', 'type']
+    search_fields = ['name', 'type']  # also required for autocomplete in ProductItemAdmin
+    inlines = [ProductItemInline]
+
+    def get_queryset(self, request):
+        from django.db.models import Count
+        return super().get_queryset(request).select_related('category').annotate(
+            _product_count=Count('productitem')
+        )
+
+    def parent_category(self, obj):
+        return obj.category.name if obj.category else '-'
+    parent_category.short_description = 'Parent Category'
+
+    def product_count(self, obj):
+        return obj._product_count
+    product_count.short_description = 'Products'
+    product_count.admin_order_field = '_product_count'
+
+    def view_products(self, obj):
+        url = reverse(f'admin:{ProductItem._meta.app_label}_productitem_changelist')
+        return format_html('<a href="{}?category__id__exact={}">View products</a>', url, obj.id)
+    view_products.short_description = 'Products list'
+
+
+@admin.register(ProductItem)
+class ProductItemAdmin(admin.ModelAdmin):
+    list_display = ['name', 'category', 'price', 'delivery_fee', 'location', 'rate', 'date_time']
+    list_filter = [('category', admin.RelatedOnlyFieldListFilter), 'is_sub_category', 'date_time']
+    search_fields = ['name', 'location', 'slug', 'category__name']  # the search bar
+    list_select_related = ['category']
+    autocomplete_fields = ['category']
+    filter_horizontal = ['images']
+    readonly_fields = ['slug', 'date_time']
+    ordering = ['category__name', 'name']
+    list_per_page = 25
 
 
 @admin.register(Order)
