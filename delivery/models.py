@@ -15,7 +15,7 @@ class Profile(models.Model):
     chat_id = models.CharField(max_length=500, null=True, blank=True)
 
     def __str__(self):
-        return f"test's Profile"
+        return f"${self.user.username}'s Profile"
 
 
 class CategoryModel(models.Model):
