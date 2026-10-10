@@ -10,6 +10,7 @@ from environ import Env
 
 from .serializers import OrderSerializer
 from .send_message import send_telegram_message
+from .telegram_auth import get_verified_chat_id, link_chat_id_to_profile
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,12 @@ def is_staff_profile(profile):
 @database_sync_to_async
 def get_profile_info(profile):
     return profile.user.username, profile.phone
+
+
+@database_sync_to_async
+def save_chat_id_for_profile(profile, chat_id):
+    # links only when the profile has no chat_id yet and no other profile uses it
+    return link_chat_id_to_profile(profile, chat_id)
 
 
 @database_sync_to_async
@@ -238,6 +245,17 @@ class OrderStatusMonitor(AsyncWebsocketConsumer):
                     message,
                     [env("TELEGRAM_CHAT_ID"), env("TELEGRAM_ADMIN_CHAT_ID")] + delivery_chat_ids
                 )
+
+            elif message_type == 'save_chat_id':
+                # For users who are already logged in (their JWT is still valid, so they
+                # never pass through the login/sign-up endpoints). The id comes from the
+                # signed Telegram initData, never from a plain chat_id the client claims.
+                chat_id = get_verified_chat_id(str(data.get('init_data', '')))
+                saved = bool(chat_id) and await save_chat_id_for_profile(profile, chat_id)
+                await self.send(text_data=json.dumps({
+                    'type': 'chat_id_saved',
+                    'saved': bool(saved)
+                }))
 
             elif 'text-message' in text_data_json:
                 await self.send(text_data=json.dumps({
