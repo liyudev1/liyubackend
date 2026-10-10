@@ -1,9 +1,12 @@
 from django.urls import path
-from .views import CreateUserView,ListProduct,ListCategory,GetProduct,CreateOrder,GetOrders,ListFilterCategory,ListFilterProduct,GetProfile,SaveToken,GetAdminToken,CancelOrder,CreateContactUsView,GetOrdersForMonitor,GetDeliveryInfo
+from .views import ListProduct,ListCategory,GetProduct,CreateOrder,GetOrders,ListFilterCategory,ListFilterProduct,GetProfile,SaveToken,GetAdminToken,CancelOrder,CreateContactUsView,GetOrdersForMonitor,GetDeliveryInfo
+from .auth_views import CreateUserView,LoginView,UpdatePhoneView
 
 
 urlpatterns = [
     path("create-user/",CreateUserView.as_view(),name="create-user"),
+    path("auth/login/",LoginView.as_view(),name="auth-login"),
+    path("auth/update-phone/",UpdatePhoneView.as_view(),name="auth-update-phone"),
     path("list-product/",ListProduct.as_view(),name="list-product"),
     path("list-category/",ListCategory.as_view(),name="list-category"),
     path("product-detail/<slug:slug>/",GetProduct.as_view(),name="list-category"),
