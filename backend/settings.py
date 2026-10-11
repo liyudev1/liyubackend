@@ -76,7 +76,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.common.CommonMiddleware',
 ]
 
 
@@ -139,21 +138,23 @@ ASGI_APPLICATION = 'backend.asgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
 print(ENVIRONMENT)
 
 if ENVIRONMENT == "production":
+    # In Railway, set DATABASE_URL on this service to the reference variable
+    #   ${{Postgres.DATABASE_URL}}
+    # (replace "Postgres" with your database service's name). That is the
+    # INTERNAL URL (postgres.railway.internal) and only works from inside
+    # the same Railway project.
+    #
+    # SSL is not needed on Railway's private network. If you ever point
+    # DATABASE_URL at the public proxy (DATABASE_PUBLIC_URL), set
+    # DB_SSL_REQUIRE=True in the environment.
     DATABASES = {
         'default': dj_database_url.config(
             env="DATABASE_URL",
             conn_max_age=600,
-            ssl_require=True,  # set False only if your DB doesn't need SSL (e.g. same private network)
+            ssl_require=env.bool("DB_SSL_REQUIRE", default=False),
         )
     }
 
