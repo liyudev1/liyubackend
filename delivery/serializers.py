@@ -14,7 +14,8 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'password', 'phone', 'is_delivery', 'chat_id']
         extra_kwargs = {
-            "password": {"write_only": True}
+            # 3-character minimum. Keep in sync with MIN_PASSWORD_LENGTH in the frontend.
+            "password": {"write_only": True, "min_length": 3}
         }
 
     def create(self, validated_data):
